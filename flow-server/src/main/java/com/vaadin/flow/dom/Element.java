@@ -117,6 +117,18 @@ public class Element extends Node<Element> {
         assert getStateProvider() != null;
     }
 
+    public Element(String namespace, String tag) {
+        this(tag);
+
+        getNode().getFeature(ElementData.class).setNamespace(namespace);
+    }
+
+    public String getNamespace() {
+        // Should probably do this through BasicElementStateProvider to properly
+        // handle Text nodes and such
+        return getNode().getFeature(ElementData.class).getNamespace();
+    }
+
     /**
      * Gets the element mapped to the given state node.
      *

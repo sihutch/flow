@@ -168,10 +168,16 @@ public class SimpleElementBindingStrategy implements BindingStrategy<Element> {
     @Override
     public Element create(StateNode node) {
         String tag = getTag(node);
+        String namespace = (String) node.getMap(NodeFeatures.ELEMENT_DATA)
+                .getProperty(NodeProperties.NAMESPACE).getValue();
 
         assert tag != null : "New child must have a tag";
 
-        return Browser.getDocument().createElement(tag);
+        if (namespace == null) {
+            return Browser.getDocument().createElement(tag);
+        } else {
+            return Browser.getDocument().createElementNS(namespace, tag);
+        }
     }
 
     @Override
@@ -191,6 +197,7 @@ public class SimpleElementBindingStrategy implements BindingStrategy<Element> {
         assert hasSameTag(stateNode, htmlNode) : "Element tag name is '"
                 + htmlNode.getTagName() + "', but the required tag name is "
                 + getTag(stateNode);
+        // Maybe also assert same namespace?
 
         if (boundNodes == null) {
             boundNodes = JsCollections.weakMap();

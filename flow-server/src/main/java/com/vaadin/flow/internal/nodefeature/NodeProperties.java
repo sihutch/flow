@@ -106,6 +106,8 @@ public final class NodeProperties {
      */
     public static final String URI_ATTRIBUTE = "uri";
 
+    public static final String NAMESPACE = "namespace";
+
     private NodeProperties() {
     }
 }

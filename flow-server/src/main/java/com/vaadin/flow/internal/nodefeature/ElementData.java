@@ -105,4 +105,16 @@ public class ElementData extends NodeMap {
     public boolean allowsChanges() {
         return isVisible();
     }
+
+    public void setNamespace(String namespace) {
+        if (namespace == null || namespace.isEmpty()) {
+            remove(NodeProperties.NAMESPACE);
+        } else {
+            put(NodeProperties.NAMESPACE, namespace);
+        }
+    }
+
+    public String getNamespace() {
+        return getOrDefault(NodeProperties.NAMESPACE, null);
+    }
 }
