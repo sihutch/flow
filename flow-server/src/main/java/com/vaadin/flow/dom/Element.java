@@ -388,12 +388,20 @@ public class Element extends Node<Element> {
             throw new IllegalArgumentException(ATTRIBUTE_NAME_CANNOT_BE_NULL);
         }
 
-        String lowerCaseAttribute = attribute.toLowerCase(Locale.ENGLISH);
+        String normalizedAttribute = normalizeAttributeName(attribute);
 
-        return CustomAttribute.get(lowerCaseAttribute)
+        return CustomAttribute.get(normalizedAttribute)
                 .map(attr -> attr.getAttribute(this))
                 .orElseGet(() -> getStateProvider().getAttribute(getNode(),
-                        lowerCaseAttribute));
+                        normalizedAttribute));
+    }
+
+    private String normalizeAttributeName(String attribute) {
+        if (getNamespace() == null) {
+            return attribute.toLowerCase(Locale.ENGLISH);
+        } else {
+            return attribute;
+        }
     }
 
     /**
@@ -414,15 +422,15 @@ public class Element extends Node<Element> {
         if (attribute == null) {
             throw new IllegalArgumentException(ATTRIBUTE_NAME_CANNOT_BE_NULL);
         }
-        String lowerCaseAttribute = attribute.toLowerCase(Locale.ENGLISH);
+        String normalizedAttribute = normalizeAttributeName(attribute);
 
         Optional<CustomAttribute> customAttribute = CustomAttribute
-                .get(lowerCaseAttribute);
+                .get(normalizedAttribute);
         if (customAttribute.isPresent()) {
             return customAttribute.get().hasAttribute(this);
         } else {
             return getStateProvider().hasAttribute(getNode(),
-                    lowerCaseAttribute);
+                    normalizedAttribute);
         }
 
     }
@@ -474,15 +482,15 @@ public class Element extends Node<Element> {
         if (attribute == null) {
             throw new IllegalArgumentException(ATTRIBUTE_NAME_CANNOT_BE_NULL);
         }
-        String lowerCaseAttribute = attribute.toLowerCase(Locale.ENGLISH);
-        if (hasAttribute(lowerCaseAttribute)) {
+        String normalizedAttribute = normalizeAttributeName(attribute);
+        if (hasAttribute(normalizedAttribute)) {
             Optional<CustomAttribute> customAttribute = CustomAttribute
-                    .get(lowerCaseAttribute);
+                    .get(normalizedAttribute);
             if (customAttribute.isPresent()) {
                 customAttribute.get().removeAttribute(this);
             } else {
                 getStateProvider().removeAttribute(getNode(),
-                        lowerCaseAttribute);
+                        normalizedAttribute);
             }
         }
         return this;
@@ -1203,17 +1211,17 @@ public class Element extends Node<Element> {
             throw new IllegalArgumentException(ATTRIBUTE_NAME_CANNOT_BE_NULL);
         }
 
-        String lowerCaseAttribute = attribute.toLowerCase(Locale.ENGLISH);
-        if (!ElementUtil.isValidAttributeName(lowerCaseAttribute)) {
+        String normalizedAttribute = normalizeAttributeName(attribute);
+        if (!ElementUtil.isValidAttributeName(normalizedAttribute)) {
             throw new IllegalArgumentException(String.format(
                     "Attribute \"%s\" is not a valid attribute name",
-                    lowerCaseAttribute));
+                    normalizedAttribute));
         }
 
         if (value == null) {
             throw new IllegalArgumentException("Value cannot be null");
         }
-        return lowerCaseAttribute;
+        return normalizedAttribute;
     }
 
     static void verifyEventType(String eventType) {
