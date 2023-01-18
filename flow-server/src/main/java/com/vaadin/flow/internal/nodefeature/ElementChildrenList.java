@@ -26,7 +26,7 @@ import com.vaadin.flow.internal.StateNode;
  * @author Vaadin Ltd
  * @since 1.0
  */
-public class ElementChildrenList extends StateNodeNodeList {
+public class ElementChildrenList extends StateNodeReferenceList {
     /**
      * Creates a new element children list for the given node.
      *
@@ -37,34 +37,33 @@ public class ElementChildrenList extends StateNodeNodeList {
         super(node);
     }
 
-    @Override
-    public void add(int index, StateNode node) {
+    public void addNode(int index, StateNode node) {
         assert node != null;
 
-        super.add(index, node);
+        add(index, node);
     }
 
-    @Override
-    public StateNode get(int index) {
-        return super.get(index);
+    public StateNode getNode(int index) {
+        return super.get(index).get();
     }
 
-    @Override
-    public StateNode remove(int index) {
-        return super.remove(index);
+    public StateNode removeNode(int index) {
+        return super.remove(index).get();
     }
 
-    @Override
     public void clear() {
         super.clear();
     }
 
-    @Override
-    public int indexOf(StateNode node) {
-        return super.indexOf(node);
+    public int indexOfNode(StateNode node) {
+        for (int i = 0; i < size(); i++) {
+            if (node.equals(getNode(i))) {
+                return i;
+            }
+        }
+        return -1;
     }
 
-    @Override
     public int size() {
         return super.size();
     }

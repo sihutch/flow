@@ -17,6 +17,9 @@
 package com.vaadin.flow.internal;
 
 import java.io.Serializable;
+import java.lang.ref.WeakReference;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -24,6 +27,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -46,6 +50,14 @@ import com.vaadin.flow.shared.Registration;
  * @since 1.0
  */
 public class StateTree implements NodeOwner {
+    private record Hierarchy(int parent, List<Integer> children) {
+
+    }
+
+    private Map<Integer, Hierarchy> hierarchies = new HashMap<>();
+
+    // Nodes that are always strongly referenced
+    private Set<StateNode> pinnedNodes = new HashSet<>();
 
     private final class RootNode extends StateNode {
 
@@ -156,7 +168,7 @@ public class StateTree implements NodeOwner {
 
     private Set<StateNode> dirtyNodes = new LinkedHashSet<>();
 
-    private final Map<Integer, StateNode> idToNode = new HashMap<>();
+    private final Map<Integer, WeakReference<StateNode>> idToNode = new HashMap<>();
 
     private int nextId = 1;
 
@@ -217,7 +229,7 @@ public class StateTree implements NodeOwner {
             nodeId = nextId++;
         }
 
-        idToNode.put(nodeId, node);
+        idToNode.put(nodeId, new WeakReference<>(node));
 
         if (node.hasBeforeClientResponseEntries()) {
             pendingExecutionNodes.add(node);
@@ -232,18 +244,21 @@ public class StateTree implements NodeOwner {
 
         Integer id = node.getId();
 
-        StateNode removedNode = idToNode.remove(id);
+        WeakReference<StateNode> reference = idToNode.remove(id);
+        StateNode removedNode = reference.get();
 
         if (removedNode != node) {
             // Remove by id didn't remove the expected node
             if (removedNode != null) {
                 // Put the old node back
-                idToNode.put(removedNode.getId(), removedNode);
+                idToNode.put(removedNode.getId(), reference);
             }
             throw new IllegalStateException(
                     "Unregistered node was not found based on its id. The tree is most likely corrupted.");
         }
 
+        pinnedNodes.remove(node);
+        hierarchies.remove(node.getId());
         pendingExecutionNodes.remove(node);
     }
 
@@ -263,7 +278,8 @@ public class StateTree implements NodeOwner {
      *         registered with this tree
      */
     public StateNode getNodeById(int id) {
-        return idToNode.get(id);
+        return Optional.ofNullable(idToNode.get(id)).map(WeakReference::get)
+                .orElse(null);
     }
 
     /**
@@ -294,6 +310,26 @@ public class StateTree implements NodeOwner {
         // TODO fire preCollect events
 
         allDirtyNodes.forEach(node -> node.collectChanges(collector));
+
+        System.gc();
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        System.gc();
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        long retained = idToNode.values().stream().map(WeakReference::get)
+                .filter(value -> value != null).count();
+
+        System.out.println(
+                "Retained nodes: " + retained + " / " + idToNode.size());
     }
 
     @Override
@@ -458,5 +494,99 @@ public class StateTree implements NodeOwner {
      */
     public void prepareForResync() {
         rootNode.prepareForResync();
+    }
+
+    @Override
+    public StateNodeReference createReference(StateNode node) {
+        if (!weak) {
+            return new HardStateNodeReference(node);
+        }
+
+        final int nodeId = node.getId();
+        if (nodeId == -1) {
+            // This happens if trying to create a reference to a node that isn't
+            // yet adopted
+            // by this state tree
+            throw new RuntimeException();
+        }
+
+        return new StateNodeReference() {
+            @Override
+            public void visitOrChildren(Consumer<StateNode> consumer) {
+                ArrayDeque<Integer> queue = new ArrayDeque<>();
+                queue.add(Integer.valueOf(nodeId));
+                while (!queue.isEmpty()) {
+                    Integer currentId = queue.removeFirst();
+                    StateNode currentNode = getNodeById(currentId.intValue());
+                    if (currentNode != null) {
+                        consumer.accept(currentNode);
+                    } else {
+                        queue.addAll(hierarchies.get(currentId).children);
+                    }
+                }
+            }
+
+            @Override
+            public StateNode getOrParent() {
+                StateNode node = get();
+                if (node == null) {
+                    int currentId = nodeId;
+                    while (node == null) {
+                        Integer key = Integer.valueOf(currentId);
+                        if (!hierarchies.containsKey(key)) {
+                            throw new RuntimeException(
+                                    nodeId + " : " + key.toString());
+                        }
+                        currentId = hierarchies.get(key).parent;
+                        node = getNodeById(currentId);
+                    }
+                }
+                return node;
+            }
+
+            @Override
+            public StateNode get() {
+                return getNodeById(nodeId);
+            }
+        };
+    }
+
+    @Override
+    public void setPinned(StateNode node, boolean pinned) {
+        if (pinned) {
+            pinnedNodes.add(node);
+        } else {
+            pinnedNodes.remove(node);
+        }
+    }
+
+    public static final boolean weak = true;
+
+    @Override
+    public void recordParent(StateNode parent, StateNode child) {
+        if (!weak) {
+            return;
+        }
+        int childId = child.getId();
+        int parentId = parent != null ? parent.getId() : -1;
+
+        Hierarchy newParentHierarchy = hierarchies.get(parentId);
+        if (newParentHierarchy != null) {
+            newParentHierarchy.children.add(childId);
+        }
+
+        Hierarchy newHierarchy = new Hierarchy(parentId, new ArrayList<>());
+
+        Hierarchy oldHierarcy = hierarchies.get(childId);
+        if (oldHierarcy != null) {
+            int oldParentId = oldHierarcy.parent;
+            Hierarchy oldParentHierarchy = hierarchies.get(oldParentId);
+            if (oldParentHierarchy != null) {
+                oldParentHierarchy.children.remove(Integer.valueOf(childId));
+            }
+
+            newHierarchy.children.addAll(oldHierarcy.children);
+        }
+        hierarchies.put(childId, newHierarchy);
     }
 }

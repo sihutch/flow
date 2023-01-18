@@ -317,6 +317,8 @@ public class ElementListenerMap extends NodeMap {
 
         updateEventSettings(eventType);
 
+        getNode().getOwner().setPinned(getNode(), true);
+
         return listenerWrapper;
     }
 
@@ -482,6 +484,10 @@ public class ElementListenerMap extends NodeMap {
                 .filter(wrapper -> wrapper.isPropertySynchronized(propertyName))
                 .map(wrapper -> wrapper.mode)
                 .reduce(DisabledUpdateMode::mostPermissive).orElse(null);
+    }
+
+    public boolean hasListeners() {
+        return listeners != null && !listeners.isEmpty();
     }
 
 }

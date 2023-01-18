@@ -65,4 +65,11 @@ public interface NodeOwner extends Serializable {
      * @return true if node is registered
      */
     boolean hasNode(StateNode node);
+
+    StateNodeReference createReference(StateNode node);
+
+    public void setPinned(StateNode node, boolean pinned);
+
+    void recordParent(StateNode parent, StateNode child);
+
 }

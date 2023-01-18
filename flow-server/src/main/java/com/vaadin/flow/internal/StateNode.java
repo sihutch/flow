@@ -36,6 +36,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.function.SerializableConsumer;
@@ -44,6 +45,9 @@ import com.vaadin.flow.internal.StateTree.ExecutionRegistration;
 import com.vaadin.flow.internal.change.NodeAttachChange;
 import com.vaadin.flow.internal.change.NodeChange;
 import com.vaadin.flow.internal.change.NodeDetachChange;
+import com.vaadin.flow.internal.nodefeature.ComponentMapping;
+import com.vaadin.flow.internal.nodefeature.ElementChildrenList;
+import com.vaadin.flow.internal.nodefeature.ElementListenerMap;
 import com.vaadin.flow.internal.nodefeature.InertData;
 import com.vaadin.flow.internal.nodefeature.NodeFeature;
 import com.vaadin.flow.internal.nodefeature.NodeFeatureRegistry;
@@ -155,7 +159,7 @@ public class StateNode implements Serializable {
 
     private NodeOwner owner = NullOwner.get();
 
-    private StateNode parent;
+    private StateNodeReference parent;
 
     private int id = -1;
 
@@ -237,7 +241,10 @@ public class StateNode implements Serializable {
      *         tree.
      */
     public StateNode getParent() {
-        return parent;
+        if (parent == null) {
+            return null;
+        }
+        return parent.getOrParent();
     }
 
     /**
@@ -252,6 +259,7 @@ public class StateNode implements Serializable {
     public void setParent(StateNode parent) {
         if (hasDetached()) {
             this.parent = null;
+            getOwner().recordParent(parent, this);
             return;
         }
         boolean attachedBefore = isRegistered();
@@ -276,14 +284,16 @@ public class StateNode implements Serializable {
         }
 
         if (!attachedBefore && attachedAfter) {
-            this.parent = parent;
+            this.parent = new HardStateNodeReference(parent);
             onAttach();
         } else if (attachedBefore && !attachedAfter) {
             onDetach();
-            this.parent = parent;
+            this.parent = null;
         } else {
-            this.parent = parent;
+            this.parent = parent == null ? null
+                    : new HardStateNodeReference(parent);
         }
+        getOwner().recordParent(parent, this);
     }
 
     private boolean hasDetached() {
@@ -646,6 +656,8 @@ public class StateNode implements Serializable {
         } else {
             doCollectChanges(collector, getInitializedFeatures());
         }
+
+        softenReferences();
     }
 
     private void doCollectChanges(Consumer<NodeChange> collector,
@@ -748,16 +760,46 @@ public class StateNode implements Serializable {
         owner = tree;
     }
 
+    private void softenReferences() {
+        if (!StateTree.weak) {
+            return;
+        }
+
+        if (parent instanceof HardStateNodeReference) {
+            parent = owner.createReference(getParent());
+        }
+
+        if (hasFeature(ElementChildrenList.class)) {
+            getFeatureIfInitialized(ElementChildrenList.class)
+                    .ifPresent(list -> {
+                        list.replaceAll(reference -> {
+                            if (reference instanceof HardStateNodeReference) {
+                                return owner.createReference(reference.get());
+                            } else {
+                                return reference;
+                            }
+                        });
+                    });
+        }
+    }
+
     private boolean handleOnAttach() {
         assert isAttached();
         boolean initialAttach = false;
 
         int newId = owner.register(this);
+        if (shouldPin()) {
+            owner.setPinned(this, true);
+        }
 
         if (newId != -1) {
             if (id == -1) {
                 // Didn't have an id previously, set one now
                 id = newId;
+
+                // Both parent and child should have an id by now
+                forEachChild(child -> owner.recordParent(this, child));
+
                 initialAttach = true;
             } else if (newId != id) {
                 throw new IllegalStateException(
@@ -769,6 +811,26 @@ public class StateNode implements Serializable {
         markAsDirty();
 
         return initialAttach;
+    }
+
+    private boolean shouldPin() {
+        // Should probably also pin things that currently have pending JS return
+        // values or things with @ClientCallable
+        if (hasFeature(ElementListenerMap.class)) {
+            return getFeature(ElementListenerMap.class).hasListeners();
+        }
+
+        // Tabs makes assumptions about its children, need to keep those around
+        if (hasFeature(ComponentMapping.class)) {
+            Component component = getFeature(ComponentMapping.class)
+                    .getComponent().orElse(null);
+            if (component != null && component.getClass().getName()
+                    .equals("com.vaadin.flow.component.tabs.Tab")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void handleOnDetach() {

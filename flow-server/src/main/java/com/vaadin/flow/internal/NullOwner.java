@@ -66,4 +66,20 @@ public class NullOwner implements NodeOwner {
         assert node.getOwner() == this;
         return true;
     }
+
+    @Override
+    public StateNodeReference createReference(StateNode node) {
+        return new HardStateNodeReference(node) {
+        };
+    }
+
+    @Override
+    public void setPinned(StateNode node, boolean pinned) {
+        assert node.getOwner() == this;
+    }
+
+    @Override
+    public void recordParent(StateNode parent, StateNode child) {
+
+    }
 }

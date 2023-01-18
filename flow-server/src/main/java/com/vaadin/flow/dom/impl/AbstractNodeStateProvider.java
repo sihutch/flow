@@ -94,7 +94,7 @@ public abstract class AbstractNodeStateProvider
         assert index >= 0;
         assert index < getChildCount(node);
 
-        return Element.get(getChildrenFeature(node).get(index));
+        return Element.get(getChildrenFeature(node).getNode(index));
     }
 
     @Override
@@ -102,7 +102,7 @@ public abstract class AbstractNodeStateProvider
         assert index >= 0;
         assert index <= getChildCount(node); // == if adding as last
 
-        getChildrenFeature(node).add(index, child.getNode());
+        getChildrenFeature(node).addNode(index, child.getNode());
         if (child.getComponent().isPresent()) {
             ComponentTracker.trackAttach(child.getComponent().get());
         }
@@ -113,7 +113,7 @@ public abstract class AbstractNodeStateProvider
         assert index >= 0;
         assert index < getChildCount(node);
 
-        getChildrenFeature(node).remove(index);
+        getChildrenFeature(node).removeNode(index);
     }
 
     @Override
@@ -124,12 +124,12 @@ public abstract class AbstractNodeStateProvider
     @Override
     public void removeChild(StateNode node, Element child) {
         ElementChildrenList childrenFeature = getChildrenFeature(node);
-        int pos = childrenFeature.indexOf(child.getNode());
+        int pos = childrenFeature.indexOfNode(child.getNode());
         if (pos == -1) {
             throw new IllegalArgumentException(
                     "Trying to detach an element from parent that does not have it.");
         }
-        childrenFeature.remove(pos);
+        childrenFeature.removeNode(pos);
     }
 
     @Override

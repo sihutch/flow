@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import com.vaadin.flow.internal.StateNode;
 import com.vaadin.flow.internal.change.AbstractListChange;
@@ -462,4 +463,11 @@ public abstract class NodeList<T extends Serializable> extends NodeFeature {
             isPopulated = false;
         }
     }
+
+    public void replaceAll(UnaryOperator<T> replacer) {
+        if (values != null) {
+            values.replaceAll(replacer);
+        }
+    }
+
 }

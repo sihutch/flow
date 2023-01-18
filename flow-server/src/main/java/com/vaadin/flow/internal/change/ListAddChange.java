@@ -24,6 +24,7 @@ import com.vaadin.flow.internal.ConstantPool;
 import com.vaadin.flow.internal.JsonCodec;
 import com.vaadin.flow.internal.JsonUtils;
 import com.vaadin.flow.internal.StateNode;
+import com.vaadin.flow.internal.StateNodeReference;
 import com.vaadin.flow.internal.nodefeature.NodeList;
 import com.vaadin.flow.shared.JsonConstants;
 
@@ -117,7 +118,12 @@ public class ListAddChange<T extends Serializable>
         String addKey;
         if (nodeValues) {
             addKey = JsonConstants.CHANGE_SPLICE_ADD_NODES;
-            mapper = item -> Json.create(((StateNode) item).getId());
+            mapper = item -> {
+                if (item instanceof StateNodeReference ref) {
+                    return Json.create(ref.get().getId());
+                }
+                return Json.create(((StateNode) item).getId());
+            };
         } else {
             addKey = JsonConstants.CHANGE_SPLICE_ADD;
             mapper = item -> JsonCodec.encodeWithConstantPool(item,
