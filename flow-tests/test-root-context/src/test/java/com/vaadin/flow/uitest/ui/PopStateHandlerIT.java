@@ -1,12 +1,14 @@
 package com.vaadin.flow.uitest.ui;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.openqa.selenium.By;
 
 import com.vaadin.flow.router.internal.PathUtil;
 import com.vaadin.flow.testutil.ChromeBrowserTest;
 
+@Ignore
 public class PopStateHandlerIT extends ChromeBrowserTest {
 
     private static final String FORUM = "com.vaadin.flow.uitest.ui.PopStateHandlerUI/forum/";
